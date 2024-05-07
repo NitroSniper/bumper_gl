@@ -50,7 +50,7 @@ FetchContent_MakeAvailable(glfw)
 FetchContent_Declare(
         imgui
         GIT_REPOSITORY https://github.com/ocornut/imgui.git
-        GIT_TAG 231cbee0fc4f59dbe5b8b853a11b08dc84e57c65
+        GIT_TAG 231cbee0fc4f59dbe5b8b853a11b08dc84e57c65 #refs/tags/v1.90.5
 )
 FetchContent_MakeAvailable(imgui)
 file(GLOB imgui_SRC ${imgui_SOURCE_DIR}/*.cpp ${imgui_SOURCE_DIR}/*.h)
@@ -69,10 +69,39 @@ target_include_directories(
         ${imgui_SOURCE_DIR}
         ${imgui_SOURCE_DIR}/backends
 )
+##############################
+#           ASSIMP           #
+##############################
 
+FetchContent_Declare(
+        assimp
+        GIT_REPOSITORY https://github.com/assimp/assimp.git
+        GIT_TAG 8b9ed34eaa3e6ad24254cb7e058fb9150f66b865 #refs/tag/v5.4.0
+)
+set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
+set(ASSIMP_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+set(ASSIMP_INJECT_DEBUG_POSTFIX OFF CACHE BOOL "" FORCE)
+set(ASSIMP_INSTALL OFF CACHE BOOL "" FORCE)
+FetchContent_MakeAvailable(assimp)
+##############################
+#             STB            #
+##############################
+
+FetchContent_Declare(
+        stb
+        GIT_REPOSITORY https://github.com/nothings/stb.git
+)
+FetchContent_MakeAvailable(stb)
+include_directories(${stb_SOURCE_DIR})
 ##############################
 #             APP            #
 ##############################
-
-add_executable(App main.cpp)
-target_link_libraries(App glm::glm glfw glad imgui)
+file(COPY resources DESTINATION ${CMAKE_BINARY_DIR})
+add_executable(App main.cpp
+        Mesh.h
+        Model.h
+        stb.cpp
+        Shader.h
+        Camera.h
+)
+target_link_libraries(App glm::glm glfw glad imgui assimp)

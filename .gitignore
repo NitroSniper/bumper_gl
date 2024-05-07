@@ -1,4 +1,5 @@
-/cmake-build-debug/
+/out/
 /glad/*
 !glad/README.md
 /.idea/
+/.vs/

@@ -17,7 +17,7 @@ if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress)) {
 ```
 I chose `glad2` but you can use either.
 ## Getting Glad for the Project
-Get the glad source code and place it in the `glad/` folder.
+Get the glad source code (via the link) and place it in the `glad/` folder. the file structure should look the same as the one below.
 * `glad1` - https://glad.dav1d.de/
 
   ```md

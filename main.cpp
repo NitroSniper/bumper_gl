@@ -1,237 +1,192 @@
 #include <glad/gl.h>
 #include <GLFW/glfw3.h>
-#include <chrono>
+
 #include <glm/glm.hpp>
-#include <imgui.h>
-#include <imgui_impl_glfw.h>
-#include <imgui_impl_opengl3.h>
+#include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtc/type_ptr.hpp>
+
+#include "Shader.h"
+#include "Camera.h"
+#include "Model.h"
+
 #include <iostream>
-#include <thread>
 
-const char *vertexShaderSrc = R"(
-#version 450
+void framebuffer_size_callback(GLFWwindow* window, int width, int height);
+void mouse_callback(GLFWwindow* window, double xpos, double ypos);
+void scroll_callback(GLFWwindow* window, double xoffset, double yoffset);
+void processInput(GLFWwindow *window);
 
-layout (location = 0) in vec2 aPos;
+// settings
+const unsigned int SCR_WIDTH = 800;
+const unsigned int SCR_HEIGHT = 600;
 
-void main() {
-    gl_Position = vec4(aPos, 1, 1);
+// camera
+Camera camera(glm::vec3(0.0f, 0.0f, 3.0f));
+float lastX = SCR_WIDTH / 2.0f;
+float lastY = SCR_HEIGHT / 2.0f;
+bool firstMouse = true;
+
+// timing
+float deltaTime = 0.0f;
+float lastFrame = 0.0f;
+
+int main()
+{
+    // glfw: initialize and configure
+    // ------------------------------
+    glfwInit();
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
+    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+
+#ifdef __APPLE__
+    glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
+#endif
+
+    // glfw window creation
+    // --------------------
+    GLFWwindow* window = glfwCreateWindow(SCR_WIDTH, SCR_HEIGHT, "LearnOpenGL", NULL, NULL);
+    if (window == NULL)
+    {
+        std::cout << "Failed to create GLFW window" << std::endl;
+        glfwTerminate();
+        return -1;
+    }
+    glfwMakeContextCurrent(window);
+    glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
+    glfwSetCursorPosCallback(window, mouse_callback);
+    glfwSetScrollCallback(window, scroll_callback);
+
+    // tell GLFW to capture our mouse
+    glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+
+    // glad: load all OpenGL function pointers
+    // ---------------------------------------
+    if (!gladLoadGL(glfwGetProcAddress))
+    {
+        std::cout << "Failed to initialize GLAD" << std::endl;
+        return -1;
+    }
+
+    // tell stb_image.h to flip loaded texture's on the y-axis (before loading model).
+    stbi_set_flip_vertically_on_load(true);
+
+    // configure global opengl state
+    // -----------------------------
+    glEnable(GL_DEPTH_TEST);
+
+    // build and compile shaders
+    // -------------------------
+    Shader ourShader("resources/shaders/default.vs", "resources/shaders/default.fs");
+
+    // load models
+    // -----------
+    Model ourModel("resources/backpack/backpack.obj");
+
+    
+    // draw in wireframe
+    //glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+
+    // render loop
+    // -----------
+    while (!glfwWindowShouldClose(window))
+    {
+        // per-frame time logic
+        // --------------------
+        float currentFrame = static_cast<float>(glfwGetTime());
+        deltaTime = currentFrame - lastFrame;
+        lastFrame = currentFrame;
+
+        // input
+        // -----
+        processInput(window);
+
+        // render
+        // ------
+        glClearColor(0.05f, 0.05f, 0.05f, 1.0f);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+        // don't forget to enable shader before setting uniforms
+        ourShader.use();
+
+        // view/projection transformations
+        glm::mat4 projection = glm::perspective(glm::radians(camera.Zoom), (float)SCR_WIDTH / (float)SCR_HEIGHT, 0.1f, 100.0f);
+        glm::mat4 view = camera.GetViewMatrix();
+        ourShader.setMat4("projection", projection);
+        ourShader.setMat4("view", view);
+
+        // render the loaded model
+        glm::mat4 model = glm::mat4(1.0f);
+        model = glm::translate(model, glm::vec3(0.0f, 0.0f, 0.0f)); // translate it down so it's at the center of the scene
+        model = glm::scale(model, glm::vec3(1.0f, 1.0f, 1.0f));	// it's a bit too big for our scene, so scale it down
+        ourShader.setMat4("model", model);
+        ourModel.Draw(ourShader);
+
+
+        // glfw: swap buffers and poll IO events (keys pressed/released, mouse moved etc.)
+        // -------------------------------------------------------------------------------
+        glfwSwapBuffers(window);
+        glfwPollEvents();
+    }
+
+    // glfw: terminate, clearing all previously allocated GLFW resources.
+    // ------------------------------------------------------------------
+    glfwTerminate();
+    return 0;
 }
 
-)";
+// process all input: query GLFW whether relevant keys are pressed/released this frame and react accordingly
+// ---------------------------------------------------------------------------------------------------------
+void processInput(GLFWwindow *window)
+{
+    if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
+        glfwSetWindowShouldClose(window, true);
 
-const char *fragmentShaderSrc = R"(
-#version 450
-
-layout (location = 0) out vec4 outColor;
-
-void main() {
-    outColor = vec4(1, 0, 0, 1);
+    if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
+        camera.ProcessKeyboard(FORWARD, deltaTime);
+    if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
+        camera.ProcessKeyboard(BACKWARD, deltaTime);
+    if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS)
+        camera.ProcessKeyboard(LEFT, deltaTime);
+    if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
+        camera.ProcessKeyboard(RIGHT, deltaTime);
 }
 
-)";
-
-void message_callback(GLenum source, GLenum type, GLuint id, GLenum severity,
-                      GLsizei length, GLchar const *message,
-                      void const *user_param) {
-  if (severity == GL_DEBUG_SEVERITY_NOTIFICATION)
-    return;
-
-  auto const src_str = [source]() {
-    switch (source) {
-    case GL_DEBUG_SOURCE_API:
-      return "API";
-    case GL_DEBUG_SOURCE_WINDOW_SYSTEM:
-      return "WINDOW SYSTEM";
-    case GL_DEBUG_SOURCE_SHADER_COMPILER:
-      return "SHADER COMPILER";
-    case GL_DEBUG_SOURCE_THIRD_PARTY:
-      return "THIRD PARTY";
-    case GL_DEBUG_SOURCE_APPLICATION:
-      return "APPLICATION";
-    case GL_DEBUG_SOURCE_OTHER:
-      return "OTHER";
-    default:
-      return "UNKNOWN SOURCE";
-    }
-  }();
-
-  auto const type_str = [type]() {
-    switch (type) {
-    case GL_DEBUG_TYPE_ERROR:
-      return "ERROR";
-    case GL_DEBUG_TYPE_DEPRECATED_BEHAVIOR:
-      return "DEPRECATED_BEHAVIOR";
-    case GL_DEBUG_TYPE_UNDEFINED_BEHAVIOR:
-      return "UNDEFINED_BEHAVIOR";
-    case GL_DEBUG_TYPE_PORTABILITY:
-      return "PORTABILITY";
-    case GL_DEBUG_TYPE_PERFORMANCE:
-      return "PERFORMANCE";
-    case GL_DEBUG_TYPE_MARKER:
-      return "MARKER";
-    case GL_DEBUG_TYPE_OTHER:
-      return "OTHER";
-    default:
-      return "UNKNOWN TYPE";
-    }
-  }();
-
-  auto const severity_str = [severity]() {
-    switch (severity) {
-    case GL_DEBUG_SEVERITY_NOTIFICATION:
-      return "NOTIFICATION";
-    case GL_DEBUG_SEVERITY_LOW:
-      return "LOW";
-    case GL_DEBUG_SEVERITY_MEDIUM:
-      return "MEDIUM";
-    case GL_DEBUG_SEVERITY_HIGH:
-      return "HIGH";
-    default:
-      return "UNKNOWN SEVERITY";
-    }
-  }();
-  std::cout << src_str << ", " << type_str << ", " << severity_str << ", " << id
-            << ": " << message << '\n';
+// glfw: whenever the window size changed (by OS or user resize) this callback function executes
+// ---------------------------------------------------------------------------------------------
+void framebuffer_size_callback(GLFWwindow* window, int width, int height)
+{
+    // make sure the viewport matches the new window dimensions; note that width and 
+    // height will be significantly larger than specified on retina displays.
+    glViewport(0, 0, width, height);
 }
 
-int main(int argc, char *argv[]) {
+// glfw: whenever the mouse moves, this callback is called
+// -------------------------------------------------------
+void mouse_callback(GLFWwindow* window, double xposIn, double yposIn)
+{
+    float xpos = static_cast<float>(xposIn);
+    float ypos = static_cast<float>(yposIn);
 
-  glfwInit();
-  glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
-  glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 5);
-  glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+    if (firstMouse)
+    {
+        lastX = xpos;
+        lastY = ypos;
+        firstMouse = false;
+    }
 
-  auto window = glfwCreateWindow(800, 600, "Example", nullptr, nullptr);
-  if (!window)
-    throw std::runtime_error("Error creating glfw window");
-  glfwMakeContextCurrent(window);
-  glfwSwapInterval(1);
+    float xoffset = xpos - lastX;
+    float yoffset = lastY - ypos; // reversed since y-coordinates go from bottom to top
 
-  if (!gladLoadGL(glfwGetProcAddress))
-  {
-    throw std::runtime_error("Error initializing glad");
-  }
-  /**
-   * Initialize ImGui
-   */
-  IMGUI_CHECKVERSION();
-  ImGui::CreateContext();
-  ImGui_ImplGlfw_InitForOpenGL(window, true);
-  ImGui_ImplOpenGL3_Init("#version 450 core");
-  ImGui::StyleColorsClassic();
+    lastX = xpos;
+    lastY = ypos;
 
-  glEnable(GL_CULL_FACE);
-  glEnable(GL_DEBUG_OUTPUT);
-  glDebugMessageCallback(message_callback, nullptr);
+    camera.ProcessMouseMovement(xoffset, yoffset);
+}
 
-  /**
-   * Compile shader
-   */
-  int success;
-  char infoLog[512];
-  auto vertexShader = glCreateShader(GL_VERTEX_SHADER);
-  glShaderSource(vertexShader, 1, &vertexShaderSrc, 0);
-  glCompileShader(vertexShader);
-
-  glGetShaderiv(vertexShader, GL_COMPILE_STATUS, &success);
-  if (!success) {
-    glGetShaderInfoLog(vertexShader, 512, nullptr, infoLog);
-    std::cerr << "Vertex shader compilation failed:" << std::endl;
-    std::cerr << infoLog << std::endl;
-    return 0;
-  }
-
-  auto fragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
-  glShaderSource(fragmentShader, 1, &fragmentShaderSrc, 0);
-  glCompileShader(fragmentShader);
-
-  glGetShaderiv(fragmentShader, GL_COMPILE_STATUS, &success);
-  if (!success) {
-    glGetShaderInfoLog(fragmentShader, 512, nullptr, infoLog);
-    std::cerr << "Fragment shader compilation failed:" << std::endl;
-    std::cerr << infoLog << std::endl;
-    return 0;
-  }
-
-  auto program = glCreateProgram();
-  glAttachShader(program, vertexShader);
-  glAttachShader(program, fragmentShader);
-  glLinkProgram(program);
-
-  glGetProgramiv(program, GL_LINK_STATUS, &success);
-  if (!success) {
-    glGetShaderInfoLog(program, 512, nullptr, infoLog);
-    std::cerr << "Shader linking failed:" << std::endl;
-    std::cerr << infoLog << std::endl;
-    return 0;
-  }
-
-  glDetachShader(program, vertexShader);
-  glDetachShader(program, fragmentShader);
-
-  /**
-   * Create vertex array and buffers
-   */
-  GLuint vao;
-  glCreateVertexArrays(1, &vao);
-
-  glEnableVertexArrayAttrib(vao, 0);
-  glVertexArrayAttribFormat(vao, 0, 2, GL_FLOAT, GL_FALSE,
-                            offsetof(glm::vec2, x));
-
-  glVertexArrayAttribBinding(vao, 0, 0);
-
-  glm::vec2 vertices[] = {{-0.2, -0.2}, {-0.2, 0.2}, {0.2, 0.2}, {0.2, -0.2}};
-
-  GLuint vbo;
-  glCreateBuffers(1, &vbo);
-  glNamedBufferStorage(vbo, sizeof(glm::vec2) * 4, vertices,
-                       GL_DYNAMIC_STORAGE_BIT);
-
-  std::uint32_t indices[] = {0, 2, 1, 2, 0, 3};
-
-  GLuint ibo;
-  glCreateBuffers(1, &ibo);
-  glNamedBufferStorage(ibo, sizeof(std::uint32_t) * 6, indices,
-                       GL_DYNAMIC_STORAGE_BIT);
-
-  glBindVertexArray(vao);
-  glVertexArrayVertexBuffer(vao, 0, vbo, 0, sizeof(glm::vec2));
-  glVertexArrayElementBuffer(vao, ibo);
-  glUseProgram(program);
-  glClearColor(0.2, 0.2, 1, 1);
-
-  while (!glfwWindowShouldClose(window)) {
-    glfwPollEvents();
-
-    glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, nullptr);
-
-    ImGui_ImplOpenGL3_NewFrame();
-    ImGui_ImplGlfw_NewFrame();
-    ImGui::NewFrame();
-
-    static bool showDemo = false;
-    ImGui::Begin("Example");
-    if (ImGui::Button("Show/Hide ImGui demo"))
-      showDemo = !showDemo;
-    ImGui::End();
-    if (showDemo)
-      ImGui::ShowDemoWindow(&showDemo);
-
-    ImGui::Render();
-    ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
-
-    glfwSwapBuffers(window);
-    glClear(GL_COLOR_BUFFER_BIT);
-
-    std::this_thread::sleep_for(std::chrono::milliseconds(1));
-  }
-
-  ImGui_ImplOpenGL3_Shutdown();
-  ImGui_ImplGlfw_Shutdown();
-  ImGui::DestroyContext();
-
-  glfwDestroyWindow(window);
-  glfwTerminate();
-  return 0;
+// glfw: whenever the mouse scroll wheel scrolls, this callback is called
+// ----------------------------------------------------------------------
+void scroll_callback(GLFWwindow* window, double xoffset, double yoffset)
+{
+    camera.ProcessMouseScroll(static_cast<float>(yoffset));
 }
