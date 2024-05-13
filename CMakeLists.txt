@@ -78,10 +78,6 @@ FetchContent_Declare(
         GIT_REPOSITORY https://github.com/assimp/assimp.git
         GIT_TAG 8b9ed34eaa3e6ad24254cb7e058fb9150f66b865 #refs/tag/v5.4.0
 )
-set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
-set(ASSIMP_BUILD_TESTS OFF CACHE BOOL "" FORCE)
-set(ASSIMP_INJECT_DEBUG_POSTFIX OFF CACHE BOOL "" FORCE)
-set(ASSIMP_INSTALL OFF CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(assimp)
 ##############################
 #             STB            #
@@ -101,7 +97,9 @@ add_executable(App main.cpp
         Mesh.h
         Model.h
         stb.cpp
-        Shader.h
         Camera.h
-)
+        Program.h
+        Diagnose.h
+        Buffer.h
+        Texture.h "AABB.h" "Bumper.h")
 target_link_libraries(App glm::glm glfw glad imgui assimp)
